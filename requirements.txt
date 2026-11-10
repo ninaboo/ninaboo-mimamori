@@ -1,0 +1,6 @@
+PySide6>=6.6
+requests>=2.31
+fugashi>=1.3
+unidic-lite>=1.0.8
+pyinstaller>=6.3
+# Translation uses llama.cpp's own llama-server.exe, downloaded by the app at runtime.
