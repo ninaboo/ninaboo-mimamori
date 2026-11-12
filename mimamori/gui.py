@@ -25,6 +25,7 @@ from .anki import AnkiConnect, AnkiError
 from .config import Config
 from .download import Cancelled, download
 from .pipeline import Context, Watcher, migrate_tags
+from .voices_dialog import VoiceManager
 
 
 class Bridge(QObject):
@@ -399,6 +400,9 @@ class MainWindow(QMainWindow):
         vp.clicked.connect(self.preview_voice)
         vn = QPushButton("Untick all", objectName="softBtn")
         vn.clicked.connect(lambda: self._set_all_checks(False))
+        vm = QPushButton("Manage voices…")
+        vm.setToolTip("Add voices from AivisHub or a file, update or remove them")
+        vm.clicked.connect(self.open_voice_manager)
         self.speed = QDoubleSpinBox(minimum=0.5, maximum=2.0, singleStep=0.05, prefix="Speed ×")
         self.speed.setValue(float(self.cfg["speed"]))
         self.speed.valueChanged.connect(lambda v: self.cfg.set("speed", round(v, 2)))
@@ -408,7 +412,7 @@ class MainWindow(QMainWindow):
         self.volume.valueChanged.connect(lambda v: self.cfg.set("volume", round(v, 2)))
         self.voice_count_lbl = QLabel()
         self.voice_count_lbl.setWordWrap(True)
-        for wdg in (vr, vp, vn, self.speed, self.volume, self.voice_count_lbl):
+        for wdg in (vm, vr, vp, vn, self.speed, self.volume, self.voice_count_lbl):
             side.addWidget(wdg)
         side.addStretch(1)
         voice_box.addWidget(self.voice_list, 1)
@@ -660,6 +664,13 @@ class MainWindow(QMainWindow):
         n = len(self.cfg["speaker_ids"])
         self.voice_count_lbl.setText("No voices ticked – audio will be skipped" if n == 0
                                      else f"{n} voice{'s' if n != 1 else ''} ticked")
+
+    def open_voice_manager(self) -> None:
+        if not self.engine.is_up():
+            QMessageBox.information(self, APP_NAME, "Start the AivisSpeech engine first – "
+                                    "voices are managed through it.")
+            return
+        VoiceManager(self, self.engine, self.run_bg, self.log, self.load_voices).exec()
 
     def preview_voice(self) -> None:
         item = self.voice_list.currentItem()

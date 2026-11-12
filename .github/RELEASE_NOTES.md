@@ -3,6 +3,7 @@ Mimamori watches an Anki deck and finishes the Japanese cards you mine with Yomi
 ## What's new in v0.2.1
 
 - **Updates itself:** Mimamori now checks for new releases. When one is out, an **Update** button appears at the top; one click downloads it and restarts into the new version, keeping your settings, voices and models.
+- **Voice manager:** *Setup → Voices → Manage voices…* lists your AivisSpeech voices and lets you add new ones (paste an AivisHub link or choose an `.aivmx` file), update them when a new version is out, or remove them.
 - Coming from **v0.2.0**? That version can't update itself yet, so update by hand once: quit Mimamori, delete the old `Mimamori.exe` and `_internal`, and copy in the new ones from this zip. From now on it's one click.
 
 ## Download and run

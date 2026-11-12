@@ -9,6 +9,7 @@ import sys
 import threading
 import time
 import zipfile
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Optional
 
@@ -220,6 +221,39 @@ class Engine:
             self._log_handle.close()
             self._log_handle = None
 
+    # -- voice model management (AivisSpeech /aivm_models API) ------------------
+    def _check(self, r: requests.Response) -> None:
+        if r.status_code >= 400:
+            try:
+                detail = r.json().get("detail")
+            except ValueError:
+                detail = r.text[:200]
+            raise EngineError(f"AivisSpeech said: {detail or r.status_code}")
+
+    def models(self) -> list[VoiceModel]:
+        r = self.http.get(f"{self.url}/aivm_models", timeout=30)
+        self._check(r)
+        data = r.json()
+        out = [_model_from_info(uuid, info) for uuid, info in data.items()]
+        return sorted(out, key=lambda m: m.name.lower())
+
+    def install_from_url(self, url: str) -> None:
+        r = self.http.post(f"{self.url}/aivm_models/install", data={"url": url}, timeout=1800)
+        self._check(r)
+
+    def install_from_file(self, path: str) -> None:
+        with open(path, "rb") as fh:
+            r = self.http.post(f"{self.url}/aivm_models/install",
+                               files={"file": (Path(path).name, fh, "application/octet-stream")},
+                               timeout=1800)
+        self._check(r)
+
+    def update_model(self, uuid: str) -> None:
+        self._check(self.http.post(f"{self.url}/aivm_models/{uuid}/update", timeout=1800))
+
+    def uninstall_model(self, uuid: str) -> None:
+        self._check(self.http.delete(f"{self.url}/aivm_models/{uuid}/uninstall", timeout=120))
+
     def speakers(self) -> list[tuple[str, int]]:
         r = self.http.get(f"{self.url}/speakers", timeout=10)
         r.raise_for_status()
@@ -241,6 +275,61 @@ class Engine:
                            timeout=120)
         r.raise_for_status()
         return r.content
+
+
+# --------------------------------------------------------------------------- voice models
+HUB_PAGE = "https://hub.aivis-project.com/"
+_UUID_RE = re.compile(r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")
+
+
+def model_source_url(text: str) -> str:
+    """Turn what the user pasted into a download link the engine can install from.
+
+    Accepts an AivisHub page link, a bare model ID, or a direct .aivmx link.
+    """
+    text = text.strip()
+    if text.lower().split("?")[0].endswith(".aivmx"):
+        return text
+    m = _UUID_RE.search(text)
+    if m:
+        return f"https://api.aivis-project.com/v1/aivm-models/{m.group(0).lower()}/download?model_type=AIVMX"
+    if text.startswith(("http://", "https://")):
+        return text
+    raise ValueError("Paste an AivisHub link, a model ID, or a link to an .aivmx file.")
+
+
+@dataclass
+class VoiceModel:
+    uuid: str
+    name: str
+    version: str
+    latest_version: str
+    creators: str
+    size_mb: float
+    styles: int
+    loaded: bool
+    update_available: bool
+    default: bool
+    private: bool
+
+
+def _model_from_info(uuid: str, info: dict) -> VoiceModel:
+    man = info.get("manifest") or {}
+    speakers = man.get("speakers") or info.get("speakers") or []
+    styles = sum(len(sp.get("styles") or []) for sp in speakers) or len(speakers)
+    return VoiceModel(
+        uuid=uuid,
+        name=man.get("name") or uuid,
+        version=str(man.get("version") or ""),
+        latest_version=str(info.get("latest_version") or ""),
+        creators=", ".join(man.get("creators") or []),
+        size_mb=(info.get("file_size") or 0) / 1e6,
+        styles=styles,
+        loaded=bool(info.get("is_loaded")),
+        update_available=bool(info.get("is_update_available")),
+        default=bool(info.get("is_default_model")),
+        private=bool(info.get("is_private_model")),
+    )
 
 
 def play_wav(data: bytes) -> None:

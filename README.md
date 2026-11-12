@@ -43,7 +43,7 @@ On review, flipping a card plays the word, then the sentence.
    | Frequency | `{frequency-harmonic-rank}` |
 
    Leave SentenceFurigana, SentenceEnglish, WordAudio and SentenceAudio empty.
-4. **2 · Voices:** click **Download engine**. The first start downloads about 900 MB of voice data and takes a few minutes. Tick the voices you like (double-click one to preview it) and set the speed and volume.
+4. **2 · Voices:** click **Download engine**. The first start downloads about 900 MB of voice data and takes a few minutes. Tick the voices you like (double-click one to preview it) and set the speed and volume. **Manage voices…** adds more voices (paste an [AivisHub](https://hub.aivis-project.com/) link or pick an `.aivmx` file), updates them, or removes ones you don't use.
 5. **3 · Translation:** pick **PLaMo 3 Translate 2B** and click **Download model**, then **Test translation**.
 6. **Watch tab:** pick your deck and click **Start watching**.
 

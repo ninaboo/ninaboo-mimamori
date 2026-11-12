@@ -172,6 +172,20 @@ QListWidget::indicator:checked {{
     background: {c["pink"]}; border-color: {c["pink"]}; image: url("{check}");
 }}
 
+/* voice manager table --------------------------------------------------- */
+QTreeWidget {{
+    background: {c["card"]}; border: 2px solid {c["border"]}; border-radius: 14px;
+    padding: 4px; outline: none;
+}}
+QTreeWidget::item {{ padding: 5px 4px; }}
+QTreeWidget::item:hover {{ background: {c["item_hover"]}; }}
+QTreeWidget::item:selected {{ background: {c["soft"]}; color: {c["accent"]}; }}
+QHeaderView::section {{
+    background: {c["soft"]}; color: {c["accent"]}; font-weight: 700;
+    border: none; padding: 5px 8px;
+}}
+QDialog {{ background: {c["bg"]}; }}
+
 /* check boxes ----------------------------------------------------------- */
 QCheckBox {{ spacing: 8px; }}
 QCheckBox::indicator {{
