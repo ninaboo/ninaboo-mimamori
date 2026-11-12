@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import re
 import shutil
+import socket
 import subprocess
 import sys
 import threading
@@ -19,7 +20,7 @@ from typing import Callable, Optional
 
 import requests
 
-from . import paths
+from . import paths, winjob
 from .download import download
 
 RELEASES_API = "https://api.github.com/repos/ggml-org/llama.cpp/releases?per_page=20"
@@ -94,6 +95,17 @@ def install(flavour: str, status: StatusFn, progress: Optional[ProgressFn] = Non
     return exe
 
 
+def port_free(port: int) -> bool:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        return s.connect_ex(("127.0.0.1", port)) != 0
+
+
+def free_port() -> int:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(("127.0.0.1", 0))
+        return s.getsockname()[1]
+
+
 class LlamaServer:
     def __init__(self, port: int = 10112) -> None:
         self.port = port
@@ -133,6 +145,9 @@ class LlamaServer:
         if self.running() and self.model == model and self.gpu_layers == gpu_layers:
             return
         self.stop()
+        if not port_free(self.port):
+            # something (e.g. a server left over from a crash) already uses our port
+            self.port = free_port()
         args = [str(exe), "-m", model, "--host", "127.0.0.1", "--port", str(self.port),
                 "-c", str(ctx), "-ngl", str(999 if gpu_layers < 0 else gpu_layers), "--jinja"]
         if threads:
@@ -141,6 +156,7 @@ class LlamaServer:
         self.proc = subprocess.Popen(args, cwd=str(exe.parent), stdout=self._log,
                                      stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL,
                                      creationflags=NO_WINDOW)
+        winjob.attach(self.proc)   # ends with Mimamori, even after a crash
         self.model, self.gpu_layers = model, gpu_layers
         if status:
             status("Loading translation model…")

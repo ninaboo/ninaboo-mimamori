@@ -11,6 +11,7 @@ from typing import Any, Callable, Optional
 
 from PySide6.QtCore import QEvent, QObject, Qt, QTimer, QUrl, Signal
 from PySide6.QtGui import QAction, QDesktopServices, QPixmap
+from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtWidgets import (
     QApplication, QButtonGroup, QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QFrame, QGroupBox,
     QHBoxLayout, QLabel, QLineEdit, QListWidget, QListWidgetItem, QMainWindow,
@@ -942,11 +943,51 @@ class MainWindow(QMainWindow):
         self.close()
 
 
-def run(start_minimized: bool = False) -> int:
+INSTANCE_NAME = "Mimamori-single-instance"
+
+
+def _tell_running_instance(message: bytes) -> bool:
+    """Send a message to an already-running Mimamori. False if none is running."""
+    sock = QLocalSocket()
+    sock.connectToServer(INSTANCE_NAME)
+    if not sock.waitForConnected(500):
+        return False
+    sock.write(message)
+    sock.flush()
+    sock.waitForBytesWritten(1000)
+    sock.disconnectFromServer()
+    return True
+
+
+def run(start_minimized: bool = False, quit_running: bool = False) -> int:
     app = QApplication(sys.argv)
     app.setApplicationName(APP_NAME)
     app.setQuitOnLastWindowClosed(False)   # keeps running in the tray
+
+    # Only one Mimamori at a time: a second launch just brings the first one forward.
+    if quit_running:
+        _tell_running_instance(b"quit")
+        return 0
+    if _tell_running_instance(b"hidden" if start_minimized else b"show"):
+        return 0
+
     win = MainWindow()
+    server = QLocalServer(win)
+    QLocalServer.removeServer(INSTANCE_NAME)          # clear a name left by a crash
+    if server.listen(INSTANCE_NAME):
+        def on_message():
+            conn = server.nextPendingConnection()
+            if conn is None:
+                return
+            conn.waitForReadyRead(500)
+            msg = bytes(conn.readAll()).strip()
+            conn.disconnectFromServer()
+            if msg == b"quit":
+                win.quit_app()
+            elif msg == b"show":
+                win.show_from_tray()
+        server.newConnection.connect(on_message)
+
     if not (start_minimized and win.tray):
         win.show()
     return app.exec()

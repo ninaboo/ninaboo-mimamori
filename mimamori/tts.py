@@ -15,7 +15,7 @@ from typing import Callable, Optional
 
 import requests
 
-from . import paths
+from . import paths, winjob
 from .download import download
 
 RELEASES_API = "https://api.github.com/repos/Aivis-Project/AivisSpeech-Engine/releases/latest"
@@ -192,6 +192,7 @@ class Engine:
             args, cwd=str(Path(exe).parent), stdout=self._log_handle,
             stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, creationflags=NO_WINDOW,
         )
+        winjob.attach(self.proc)   # ends with Mimamori, even after a crash
         status("Starting AivisSpeech Engine… (first start downloads ~900 MB of voice data)")
         t0 = time.time()
         while time.time() - t0 < timeout:

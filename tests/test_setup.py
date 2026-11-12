@@ -71,3 +71,14 @@ def test_card_templates_only_use_real_fields():
 
 def test_dark_theme_is_default(cfg):
     assert cfg["theme"] == "dark"
+
+
+def test_llama_server_picks_a_free_port_when_taken():
+    import socket
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        s.listen()
+        taken = s.getsockname()[1]
+        assert not llamaserver.port_free(taken)
+        new = llamaserver.free_port()
+        assert new != taken and llamaserver.port_free(new)

@@ -9,16 +9,21 @@ setlocal
 cd /d "%~dp0"
 
 REM Mimamori must be closed: Windows won't let us replace files it has open.
-REM (Closing the window only hides it to the tray - quit from the tray menu.)
+REM (Closing the window only hides it to the tray.)
 if /I not "%~1"=="__logged" (
     tasklist /FI "IMAGENAME eq Mimamori.exe" 2>nul | find /I "Mimamori.exe" >nul && (
         echo.
-        echo  Mimamori is still running, so it can't be updated.
-        echo  Right-click its tray icon ^(bottom right^) and choose "Quit Mimamori",
-        echo  then run build.bat again.
+        echo  Mimamori is running ^(maybe hidden in the tray^), so it can't be updated.
+        choice /C YN /M " Close it now"
+        if errorlevel 2 (
+            echo  OK - quit Mimamori from its tray icon, then run build.bat again.
+            pause
+            exit /b 1
+        )
+        taskkill /F /T /IM Mimamori.exe >nul 2>&1
+        timeout /t 2 /nobreak >nul
+        echo  Closed.
         echo.
-        pause
-        exit /b 1
     )
 )
 
