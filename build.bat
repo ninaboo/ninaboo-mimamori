@@ -8,6 +8,20 @@ REM itself on first use (CPU or GPU build, chosen by the GPU layers setting).
 setlocal
 cd /d "%~dp0"
 
+REM Mimamori must be closed: Windows won't let us replace files it has open.
+REM (Closing the window only hides it to the tray - quit from the tray menu.)
+if /I not "%~1"=="__logged" (
+    tasklist /FI "IMAGENAME eq Mimamori.exe" 2>nul | find /I "Mimamori.exe" >nul && (
+        echo.
+        echo  Mimamori is still running, so it can't be updated.
+        echo  Right-click its tray icon ^(bottom right^) and choose "Quit Mimamori",
+        echo  then run build.bat again.
+        echo.
+        pause
+        exit /b 1
+    )
+)
+
 REM Re-run this script with all output saved to build.log, then show the result
 if /I not "%~1"=="__logged" (
     echo Building Mimamori... this takes a few minutes. Full details go to build.log
