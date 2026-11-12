@@ -25,6 +25,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Check the version matches the code
+        if: github.ref_type == 'tag' || inputs.version != ''
+        shell: pwsh
+        run: |
+          $want = "${{ inputs.version || github.ref_name }}".TrimStart('v')
+          $code = (Select-String -Path mimamori/__init__.py -Pattern '__version__ = "(.+)"').Matches[0].Groups[1].Value
+          if ($want -ne $code) {
+            Write-Error "Releasing v$want, but mimamori/__init__.py says $code. Bump __version__ first."
+            exit 1
+          }
+          Write-Output "Version $code OK"
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"

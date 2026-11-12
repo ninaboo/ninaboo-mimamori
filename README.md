@@ -59,6 +59,14 @@ Minimising or closing the window keeps Mimamori running in the tray. Right-click
 
 Cards in the watched deck (and its subdecks) that use the **Mimamori** note type and don't have a `mimamori` (done) or `mimamori_error` (failed) tag yet. Fix whatever failed and click **Retry errors**. To redo a finished card, remove its `mimamori` tag in Anki.
 
+## Updating
+
+Mimamori checks GitHub for a new release when it starts (and twice a day while it runs). When there is one, an **Update to vX** button appears at the top. Click it and Mimamori downloads the new version, closes, swaps in the new `Mimamori.exe` and `_internal`, and starts again. If it was watching, it picks up where it left off. Your settings, voices and models aren't touched. A log of the swap is written to `logs\update.log`.
+
+You can turn the check off, or run it by hand, under **Setup → 4 · Startup**.
+
+To update by hand instead: quit Mimamori, delete the old `Mimamori.exe` and `_internal`, and copy the new ones in from the release zip.
+
 ## Everything stays in one folder
 
 ```

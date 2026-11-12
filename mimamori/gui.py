@@ -9,8 +9,8 @@ import time
 import traceback
 from typing import Any, Callable, Optional
 
-from PySide6.QtCore import QEvent, QObject, Qt, QTimer, Signal
-from PySide6.QtGui import QAction, QPixmap
+from PySide6.QtCore import QEvent, QObject, Qt, QTimer, QUrl, Signal
+from PySide6.QtGui import QAction, QDesktopServices, QPixmap
 from PySide6.QtWidgets import (
     QApplication, QButtonGroup, QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QFrame, QGroupBox,
     QHBoxLayout, QLabel, QLineEdit, QListWidget, QListWidgetItem, QMainWindow,
@@ -20,7 +20,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout, QWidget,
 )
 
-from . import APP_NAME, __version__, autostart, llm, notetype, paths, theme, tts
+from . import APP_NAME, __version__, autostart, llm, notetype, paths, theme, tts, updater
 from .anki import AnkiConnect, AnkiError
 from .config import Config
 from .download import Cancelled, download
@@ -78,8 +78,20 @@ class MainWindow(QMainWindow):
         self._refresh_llm_ui()
         if self.cfg["engine_mode"] == "external" or self.cfg["engine_exe"]:
             self.start_engine()
-        if self.cfg["auto_watch"] and self.cfg["deck"]:
+        resume = self.cfg["resume_watch_after_update"]
+        if resume:
+            self.cfg.set("resume_watch_after_update", False)
+            self.log(f"Updated to v{__version__} ♡")
+        if (self.cfg["auto_watch"] or resume) and self.cfg["deck"]:
             QTimer.singleShot(1500, lambda: self.watcher.running or self.toggle_watch())
+
+        self._release: Optional[updater.Release] = None
+        self._updating = False
+        self._update_timer = QTimer(self, interval=12 * 3600 * 1000)
+        self._update_timer.timeout.connect(lambda: self.check_for_updates(manual=False))
+        if self.cfg["check_updates"]:
+            QTimer.singleShot(4000, lambda: self.check_for_updates(manual=False))
+            self._update_timer.start()
 
     # ================================================================== helpers
     def log(self, msg: str) -> None:
@@ -189,9 +201,17 @@ class MainWindow(QMainWindow):
         text.addWidget(QLabel("Mimamori  見守り", objectName="title"))
         text.addWidget(QLabel("watching over your deck so your cards are ready ♡", objectName="subtitle"))
         self.chip = QLabel("resting…", objectName="chip")
+        self.update_btn = QPushButton(objectName="updateBtn")
+        self.update_btn.setVisible(False)
+        self.update_btn.clicked.connect(self.start_update)
+        self.bars["update"] = QProgressBar(visible=False)
+        self.bars["update"].setFixedWidth(150)
         lay.addWidget(logo)
         lay.addSpacing(8)
         lay.addLayout(text, 1)
+        lay.addWidget(self.bars["update"], 0, Qt.AlignVCenter)
+        lay.addWidget(self.update_btn, 0, Qt.AlignVCenter)
+        lay.addSpacing(6)
         lay.addWidget(self.chip, 0, Qt.AlignVCenter)
         return h
 
@@ -452,8 +472,18 @@ class MainWindow(QMainWindow):
         tray = QCheckBox("Closing the window keeps Mimamori running in the tray")
         tray.setChecked(bool(self.cfg["close_to_tray"]))
         tray.toggled.connect(lambda v: self.cfg.set("close_to_tray", v))
-        for c in (self.boot_chk, auto, tray):
+        upd = QCheckBox("Check for updates when Mimamori starts")
+        upd.setChecked(bool(self.cfg["check_updates"]))
+        upd.toggled.connect(self._on_check_updates_toggled)
+        for c in (self.boot_chk, auto, tray, upd):
             sl.addWidget(c)
+        row = QHBoxLayout()
+        self.version_lbl = QLabel(f"You have v{__version__}.")
+        chk = QPushButton("Check for updates now", objectName="softBtn")
+        chk.clicked.connect(lambda: self.check_for_updates(manual=True))
+        row.addWidget(self.version_lbl, 1)
+        row.addWidget(chk)
+        sl.addLayout(row)
         lay.addWidget(g)
 
         # 5. Look --------------------------------------------------------------
@@ -766,6 +796,86 @@ class MainWindow(QMainWindow):
         if (event.type() == QEvent.WindowStateChange and self.isMinimized() and self.tray):
             QTimer.singleShot(0, self.hide_to_tray)
         super().changeEvent(event)
+
+    # ================================================================== updates
+    def _on_check_updates_toggled(self, on: bool) -> None:
+        self.cfg.set("check_updates", on)
+        if on:
+            self._update_timer.start()
+        else:
+            self._update_timer.stop()
+
+    def check_for_updates(self, manual: bool = False) -> None:
+        if self._updating:
+            return
+
+        def done(rel: updater.Release):
+            if updater.is_newer(rel.version):
+                first_notice = self._release is None or self._release.version != rel.version
+                self._release = rel
+                self.update_btn.setText(f"Update to {rel.version}")
+                self.update_btn.setVisible(True)
+                self.version_lbl.setText(f"You have v{__version__}. {rel.version} is available.")
+                if first_notice:
+                    self.log(f"Mimamori {rel.version} is available – click 'Update to {rel.version}' at the top.")
+                    if self.tray and not self.isVisible():
+                        self.tray.showMessage("Mimamori update", f"{rel.version} is available. "
+                                              "Open Mimamori to update.", theme.icon(), 5000)
+            else:
+                self.update_btn.setVisible(False)
+                self.version_lbl.setText(f"You have v{__version__}, the latest version.")
+                if manual:
+                    self.log(f"You're on the latest version (v{__version__}).")
+
+        def fail(e):
+            if manual:
+                self.version_lbl.setText(f"You have v{__version__}. Couldn't check for updates.")
+
+        self.run_bg(updater.check_latest, done, fail)
+
+    def start_update(self) -> None:
+        rel = self._release
+        if rel is None or self._updating:
+            return
+        if not updater.can_self_update() or not rel.asset_url:
+            QDesktopServices.openUrl(QUrl(rel.page_url))
+            return
+        size = f" (~{rel.asset_size / 1e6:.0f} MB)" if rel.asset_size else ""
+        notes = rel.notes.strip()
+        if len(notes) > 700:
+            notes = notes[:700].rsplit("\n", 1)[0] + "\n…"
+        box = QMessageBox(self)
+        box.setWindowTitle("Update Mimamori")
+        box.setText(f"Update from v{__version__} to {rel.version}{size}?\n\n"
+                    "Mimamori will download it, close, swap in the new version and start "
+                    "again. Your settings, voices and models stay as they are.")
+        if notes:
+            box.setDetailedText(notes)
+        box.setStandardButtons(QMessageBox.Yes | QMessageBox.Cancel)
+        box.button(QMessageBox.Yes).setText("Update")
+        if box.exec() != QMessageBox.Yes:
+            return
+
+        self._updating = True
+        self.update_btn.setEnabled(False)
+        self.update_btn.setText("Downloading…")
+        self.log(f"Downloading Mimamori {rel.version}…")
+
+        def done(new_root):
+            self.bars["update"].setVisible(False)
+            self.log("Restarting to finish the update…")
+            self.cfg.set("resume_watch_after_update", self.watcher.running)
+            updater.launch_swap(updater.prepare_restart(new_root))
+            self.quit_app()
+
+        def fail(e):
+            self._updating = False
+            self.bars["update"].setVisible(False)
+            self.update_btn.setEnabled(True)
+            self.update_btn.setText(f"Update to {rel.version}")
+            self.log(f"※ Update failed: {e}. You can also download it from {rel.page_url}")
+
+        self.run_bg(lambda: updater.download_and_stage(rel, self._progress_fn("update")), done, fail)
 
     def _on_boot_toggled(self, on: bool) -> None:
         try:

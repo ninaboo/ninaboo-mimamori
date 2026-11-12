@@ -23,6 +23,10 @@ DEFAULTS: dict[str, Any] = {
     "sentence_source": "auto",
     "clipboard_max_age": 300,   # seconds; older clipboard entries are ignored
 
+    # Updates
+    "check_updates": True,                 # look for a new release on startup (and twice a day)
+    "resume_watch_after_update": False,    # internal: restart watching after an update
+
     # Look
     "theme": "dark",                       # "dark" | "light"
 

@@ -128,6 +128,9 @@ QPushButton#watchBtn:hover {{
 QPushButton#watchBtn[watching="true"] {{ background: {c["mint"]}; }}
 QPushButton#watchBtn[watching="true"]:hover {{ background: {c["mint_hover"]}; }}
 
+QPushButton#updateBtn {{ background: {c["mint"]}; border-radius: 13px; padding: 6px 14px; }}
+QPushButton#updateBtn:hover {{ background: {c["mint_hover"]}; }}
+
 QPushButton#softBtn {{ background: {c["soft"]}; color: {c["accent"]}; }}
 QPushButton#softBtn:hover {{ background: {c["soft_hover"]}; }}
 
