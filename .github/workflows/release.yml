@@ -1,13 +1,20 @@
 # Builds Mimamori.exe on GitHub's Windows machines and attaches it to a release.
 #
-# To publish a release:  git tag v0.2.0  &&  git push origin v0.2.0
-# (or run it by hand from the Actions tab to just get a test build).
+# To publish a release, either:
+#   - Actions tab -> "Build and release" -> Run workflow -> type a version (e.g. v0.2.1), or
+#   - git tag v0.2.1 && git push origin v0.2.1
+# Running it by hand with the version box empty just makes a test build.
 name: Build and release
 
 on:
   push:
     tags: ["v*"]
   workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release, e.g. v0.2.1 (leave empty for a test build)"
+        required: false
+        default: ""
 
 permissions:
   contents: write
@@ -42,21 +49,26 @@ jobs:
         id: zip
         shell: pwsh
         run: |
-          $name = if ($env:GITHUB_REF_TYPE -eq "tag") { $env:GITHUB_REF_NAME } else { "dev-$($env:GITHUB_SHA.Substring(0,7))" }
+          $version = "${{ inputs.version }}"
+          $name = if ($version) { $version } elseif ($env:GITHUB_REF_TYPE -eq "tag") { $env:GITHUB_REF_NAME } else { "dev-$($env:GITHUB_SHA.Substring(0,7))" }
           $zip = "Mimamori-$name-windows.zip"
           Compress-Archive -Path dist\Mimamori -DestinationPath $zip
           "zip=$zip" >> $env:GITHUB_OUTPUT
 
       - name: Keep the build (test runs)
-        if: github.ref_type != 'tag'
+        if: github.ref_type != 'tag' && inputs.version == ''
         uses: actions/upload-artifact@v4
         with:
           name: ${{ steps.zip.outputs.zip }}
           path: ${{ steps.zip.outputs.zip }}
 
       - name: Publish release
-        if: github.ref_type == 'tag'
+        if: github.ref_type == 'tag' || inputs.version != ''
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ inputs.version || github.ref_name }}
+          target_commitish: ${{ github.sha }}
+          name: Mimamori ${{ inputs.version || github.ref_name }}
+          body_path: .github/RELEASE_NOTES.md
           files: ${{ steps.zip.outputs.zip }}
           generate_release_notes: true
