@@ -67,3 +67,7 @@ def test_card_templates_only_use_real_fields():
     import re
     used = set(re.findall(r"\{\{[#^/]?(?:furigana:|text:)?(\w+)\}\}", notetype.FRONT + notetype.BACK))
     assert used <= set(notetype.FIELDS)
+
+
+def test_dark_theme_is_default(cfg):
+    assert cfg["theme"] == "dark"

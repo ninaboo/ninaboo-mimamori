@@ -23,6 +23,9 @@ DEFAULTS: dict[str, Any] = {
     "sentence_source": "auto",
     "clipboard_max_age": 300,   # seconds; older clipboard entries are ignored
 
+    # Look
+    "theme": "dark",                       # "dark" | "light"
+
     # Startup / tray
     "start_with_windows": False,           # mirrors the registry entry (see autostart.py)
     "auto_watch": False,                   # start watching as soon as Mimamori opens

@@ -41,6 +41,8 @@ class MainWindow(QMainWindow):
         self.resize(940, 820)
 
         self.cfg = Config()
+        self._counts = (0, 0)
+        theme.apply(QApplication.instance(), self.cfg["theme"])
         self.bridge = Bridge()
         self.bridge.log.connect(self._append_log)
         self.bridge.call.connect(lambda fn: fn())
@@ -203,10 +205,18 @@ class MainWindow(QMainWindow):
         return area
 
     def _set_counts(self, ok: int, bad: int) -> None:
-        self.filled_lbl.setText(f"<span style='font-size:20pt; font-weight:800; color:#d44d86'>{ok}</span>"
+        self._counts = (ok, bad)
+        c = theme.current()
+        self.filled_lbl.setText(f"<span style='font-size:20pt; font-weight:800; color:{c['accent']}'>{ok}</span>"
                                 f"<br>cards filled ♡")
-        self.err_lbl.setText(f"<span style='font-size:20pt; font-weight:800; color:#b5668a'>{bad}</span>"
+        self.err_lbl.setText(f"<span style='font-size:20pt; font-weight:800; color:{c['text_soft']}'>{bad}</span>"
                              f"<br>need a retry")
+
+    def _apply_theme(self, name: str) -> None:
+        self.cfg.set("theme", name)
+        theme.apply(QApplication.instance(), name)
+        self._set_counts(*self._counts)
+        self.status_lbl.setStyleSheet(f"color: {theme.current()['text_soft']};")
 
     def _set_watching_look(self, watching: bool) -> None:
         self.watch_btn.setText("■  Stop watching" if watching else "♡  Start watching")
@@ -280,7 +290,7 @@ class MainWindow(QMainWindow):
 
         self.status_lbl = QLabel()
         self.status_lbl.setWordWrap(True)
-        self.status_lbl.setStyleSheet("color: #b5668a;")
+        self.status_lbl.setStyleSheet(f"color: {theme.current()['text_soft']};")
         lay.addWidget(self.status_lbl)
         lay.addStretch(1)
         self._set_watching_look(False)
@@ -444,6 +454,17 @@ class MainWindow(QMainWindow):
         tray.toggled.connect(lambda v: self.cfg.set("close_to_tray", v))
         for c in (self.boot_chk, auto, tray):
             sl.addWidget(c)
+        lay.addWidget(g)
+
+        # 5. Look --------------------------------------------------------------
+        g = QGroupBox("5 · Look")
+        form = QFormLayout(g)
+        look = QComboBox()
+        look.addItem("Dark (pink)", "dark")
+        look.addItem("Light (pink)", "light")
+        look.setCurrentIndex(max(0, look.findData(self.cfg["theme"])))
+        look.currentIndexChanged.connect(lambda: self._apply_theme(look.currentData()))
+        form.addRow("Theme:", look)
         lay.addWidget(g)
 
         lay.addStretch(1)
@@ -804,7 +825,6 @@ def run(start_minimized: bool = False) -> int:
     app = QApplication(sys.argv)
     app.setApplicationName(APP_NAME)
     app.setQuitOnLastWindowClosed(False)   # keeps running in the tray
-    theme.apply(app)
     win = MainWindow()
     if not (start_minimized and win.tray):
         win.show()
